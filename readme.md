@@ -6,7 +6,7 @@ This project is a Blazor web application designed to assist users with Task Mana
 ## Features
 -   **User Authentication**: Secure user registration, login, logout, and password reset functionalities.
 -   **User Management**: Administration features to manage user accounts.
--   **Task Management**: Create, view, update, and delete tasks related to Hajj and Umrah.
+-   **Task Management**: Create, view, update, and delete tasks.
 -   **Email Services**: Integration for sending emails (e.g., for account activation, password resets).
 -   **Responsive UI**: Built with Blazor components for an interactive and modern user experience.
 
@@ -67,7 +67,7 @@ This project is a Blazor web application designed to assist users with Task Mana
 -   **User Administration**: If authorized, administrative users can manage other users through `AppPages/Users`.
 
 ## Contributing
-We welcome contributions to the Hajj and Umra Project! To contribute:
+We welcome contributions to the Tasks App Project! To contribute:
 
 1.  Fork the repository.
 2.  Create a new branch for your feature or bug fix.
