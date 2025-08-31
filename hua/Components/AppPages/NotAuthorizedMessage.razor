@@ -1,0 +1,6 @@
+@inject NavigationManager Navigation
+@namespace AppPages
+
+<div class="alert alert-warning fade show" role="alert">
+    You are not authorized to view this page. Please <a class="mx-0 px-0" href="" @onclick='() => Navigation.NavigateTo("/login")'>login</a> to continue
+</div>

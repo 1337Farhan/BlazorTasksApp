@@ -1,0 +1,166 @@
+@using hua.Entities
+@using hua.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@inject TaskService TaskService
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="modal fade @(IsVisible ? "show" : "")" id="staticBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" style="@(IsVisible ? "display: block;" : "display: none;")">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="staticBackdropLabel">Create New Task</h5>
+        <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <EditForm Model="@newTask" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+                        
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText class="form-control" @bind-Value="newTask.Title" />
+                <ValidationMessage For="() => newTask.Title" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control" @bind-Value="newTask.Description" />
+                <ValidationMessage For="() => newTask.Description" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Assignee</label>
+                @if (currentUserRole == "admin")
+                {
+                    <InputSelect class="form-select" @bind-Value="selectedUserId">
+                        <option value="">Select Assignee</option>
+                        @foreach(var user in UserData)
+                        {
+                            <option value="@user.Id">@user.Name</option>
+                        }
+                    </InputSelect>
+                }
+                else
+                {
+                    <InputSelect class="form-select" disabled @bind-Value="currentUserName">
+                        <option value="@currentUserName" selected>@currentUserName (Yourself)</option>
+                    </InputSelect>
+                    <small class="form-text text-muted">You can only assign tasks to yourself.</small>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                <InputSelect class="form-select" @bind-Value="newTask.Status">
+                    <option value="">Select Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </InputSelect>
+                <ValidationMessage For="() => newTask.Status" />
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Task</button>
+            </div>
+        </EditForm>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    private bool IsVisible;
+    private string? selectedUserId;
+    [Parameter] public EventCallback OnTaskCreated { get; set; }
+    
+    private hua.Entities.Task newTask = new hua.Entities.Task();
+    private List<User> UserData = new List<User>();
+    private string currentUserRole = "";
+    private string currentUserName = "";
+    private int currentUserId = 0;
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        // Get current user info
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity.IsAuthenticated)
+        {
+            currentUserRole = user.FindFirst(ClaimTypes.Role)?.Value ?? "user";
+            currentUserName = user.Identity.Name;
+            
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userIdString) && int.TryParse(userIdString, out int userId))
+            {
+                currentUserId = userId;
+            }
+        }
+
+        // Load users based on role
+        if (currentUserRole == "admin")
+        {
+            UserData = await UserService.GetAllUsersList();
+        }
+        else
+        {
+            // For non-admin, only show themselves
+            var currentUser = await UserService.GetUserById(currentUserId);
+            if (currentUser != null)
+            {
+                UserData = new List<User> { currentUser };
+                selectedUserId = currentUserId.ToString();
+            }
+        }
+    }
+
+    private async System.Threading.Tasks.Task HandleSubmit()
+    {
+        // For non-admin users, ensure they can only assign to themselves
+        if (currentUserRole != "admin")
+        {
+            // Create a user object with just the ID to avoid duplicate key issues
+            newTask.AssignedToUser = new User { Id = currentUserId };
+        }
+        else if (!string.IsNullOrEmpty(selectedUserId) && int.TryParse(selectedUserId, out int userId))
+        {
+            newTask.AssignedToUser = new User { Id = userId };
+        }
+        else
+        {
+            newTask.AssignedToUser = null;
+        }
+
+        await TaskService.CreateTaskAsync(newTask);
+        
+        // Reset form
+        newTask = new hua.Entities.Task();
+        if (currentUserRole != "admin")
+        {
+            selectedUserId = currentUserId.ToString(); // Keep self-selected for non-admins
+        }
+        
+        // Close modal
+        Hide();
+        
+        // Notify parent component
+        await OnTaskCreated.InvokeAsync();
+    }
+    
+    public void Show()
+    {
+        IsVisible = true;
+        StateHasChanged();
+    }
+    
+    public void Hide()
+    {
+        IsVisible = false;
+        StateHasChanged();
+    }
+}

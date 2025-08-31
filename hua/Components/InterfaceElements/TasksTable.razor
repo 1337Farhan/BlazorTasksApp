@@ -1,0 +1,190 @@
+@using System
+@using hua.Entities
+@using hua.Services
+@inject TaskService TaskService
+@inject UserService UserService
+
+
+<table class="table table-striped table-hover border mt-2">
+    <thead>
+        <tr class="align-middle">
+            <th class="text-center">ID</th>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Created Date</th>
+            <th>Status</th>
+            <th>Assignee</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var task in TaskData)
+        {
+            <tr class="align-middle" key="@task.Id">
+                <td class="text-center">@task.Id</td>
+                <td>@(task.Title == ""? "-":task.Title)</td>
+                <td>
+                    @{
+                        string displayDescription = string.IsNullOrEmpty(task.Description) ? 
+                        "-" : 
+                        task.Description.Length > 15 ? 
+                            task.Description.Substring(0, 15) + "..." : 
+                            task.Description;
+                    }
+                    @displayDescription
+                </td>
+                <td>@task.CreatedDate.ToString("dd MMM yyyy")</td>
+                <td>
+                    <select class="form-select form-select-sm" 
+                            value="@task.Status" 
+                            @onchange="@(async (e) => await UpdateTaskStatus(task, e.Value.ToString()))">
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Done">Done</option>
+                    </select>
+                </td>
+                <td>
+                    @if (CurrentUserRole == "admin")
+                    {
+                        <select class="form-select form-select-sm" 
+                                value="@(task.AssignedToUser?.Id.ToString() ?? "")" 
+                                @onchange="@(async (e) => await UpdateTaskAssignee(task, e.Value.ToString()))">
+                            <option value="">Unassigned</option>
+                            @foreach (var user in users)
+                            {
+                                <option value="@user.Id">@user.Name</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <span>@(task.AssignedToUser?.Name ?? "Unassigned")</span>
+                    }
+                </td>
+                <td>
+                    <button type="button" @onclick="@(() => ViewTaskDetails(task))" class="btn btn-link text-link me-2 p-0">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button type="button" @onclick="@(() => DeleteTask(task))" class="btn btn-link text-danger p-0">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter]
+    public List<hua.Entities.Task> TaskData { get; set; } = new List<hua.Entities.Task>();
+
+    [Parameter]
+    public EventCallback OnTaskUpdated { get; set; }
+    
+    [Parameter]
+    public string CurrentUserRole { get; set; } = "user"; // Default to user
+    [Parameter]
+    public EventCallback<Entities.Task> OnViewTaskDetails { get; set; }
+    private List<User> users = new List<User>();
+    
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        // Load all users for the assignee dropdown
+        users = await UserService.GetAllUsersList();
+    }
+
+    private void ViewTaskDetails(Entities.Task task)
+    {
+        OnViewTaskDetails.InvokeAsync(task); // Notify parent component
+    }
+    private async System.Threading.Tasks.Task UpdateTaskAssignee(Entities.Task task, string userIdString)
+    {
+        if (string.IsNullOrEmpty(userIdString))
+        {
+            // Unassign the task
+            var updatedTask = new Entities.Task
+            {
+                Id = task.Id,
+                Title = task.Title,
+                Description = task.Description,
+                Status = task.Status,
+                AssignedToUser = null,
+                CreatedDate = task.CreatedDate,
+                CompletedDate = task.CompletedDate
+            };
+
+            var result = await TaskService.UpdateTaskAsync(task.Id, updatedTask);
+            if (result != null)
+            {
+                task.AssignedToUser = null;
+                await OnTaskUpdated.InvokeAsync();
+            }
+        }
+        else if (int.TryParse(userIdString, out int userId))
+        {
+            // Find the selected user
+            var selectedUser = users.FirstOrDefault(u => u.Id == userId);
+            if (selectedUser != null)
+            {
+                var updatedTask = new Entities.Task
+                {
+                    Id = task.Id,
+                    Title = task.Title,
+                    Description = task.Description,
+                    Status = task.Status,
+                    AssignedToUser = selectedUser,
+                    CreatedDate = task.CreatedDate,
+                    CompletedDate = task.CompletedDate
+                };
+
+                var result = await TaskService.UpdateTaskAsync(task.Id, updatedTask);
+                if (result != null)
+                {
+                    task.AssignedToUser = selectedUser;
+                    await OnTaskUpdated.InvokeAsync();
+                }
+            }
+        }
+    }
+
+    private async System.Threading.Tasks.Task UpdateTaskStatus(Entities.Task task, string newStatus)
+    {
+        // Create a copy of the task with updated status
+        var updatedTask = new Entities.Task
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            Status = newStatus,
+            AssignedToUser = task.AssignedToUser,
+            CreatedDate = task.CreatedDate,
+            CompletedDate = newStatus == "Done" ? DateTime.Now : task.CompletedDate
+        };
+
+        var result = await TaskService.UpdateTaskAsync(task.Id, updatedTask);
+        
+        if (result != null)
+        {
+            // Update local task status for immediate UI feedback
+            task.Status = newStatus;
+            if (newStatus == "Done")
+            {
+                task.CompletedDate = DateTime.Now;
+            }
+            
+            await OnTaskUpdated.InvokeAsync();
+        }
+    }
+    private async System.Threading.Tasks.Task DeleteTask(Entities.Task task)
+    {
+        // Simple confirmation (you can use browser's built-in confirm)
+        if (await TaskService.DeleteTaskAsync(task.Id))
+        {
+            // Remove the task from the local list for immediate UI update
+            TaskData.Remove(task);
+            
+            // Notify parent component to refresh if needed
+            await OnTaskUpdated.InvokeAsync();
+        }
+    }
+}

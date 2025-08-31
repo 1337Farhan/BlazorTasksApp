@@ -1,0 +1,26 @@
+@page "/logout"
+@using Microsoft.AspNetCore.Components.Authorization
+@using hua.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@using Blazored.LocalStorage
+@inject ILocalStorageService LocalStorage
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Clear local storage authentication data
+        await LocalStorage.RemoveItemAsync("userEmail");
+        await LocalStorage.RemoveItemAsync("userId");
+        await LocalStorage.RemoveItemAsync("userName");
+        await LocalStorage.RemoveItemAsync("userRole");
+        
+        // Notify authentication state change
+        if (AuthenticationStateProvider is CustomAuthStateProvider customProvider)
+        {
+            await customProvider.NotifyUserLogoutAsync();
+        }
+        
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

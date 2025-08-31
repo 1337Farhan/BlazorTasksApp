@@ -1,0 +1,58 @@
+@page "/users"
+@using System.ComponentModel.DataAnnotations
+@using hua.Entities
+@using UsersTable
+@using hua.Services
+@inject UserService UserService
+@using AppPages
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@attribute [Authorize]
+
+<PageTitle>Users</PageTitle>
+
+<h1>Users</h1>
+<p>Here you can View <code>Users</code></p>
+<i class="text-muted">Note: You can only view users as an <code>Admin</code></i>
+<div class="row mt-2">
+    <div class="col-12 text-end">
+        <button @onclick="OpenModal" class="btn btn-sm btn-primary" type="button">+ Create Task</button>
+    </div>
+</div>
+<UsersTable UserData="@UserData" />
+<CreateUserModal @ref="modalRef" OnUserCreated="RefreshUsers" />
+@code {
+    private string CurrentUserName = "";
+    private string CurrentUserRole = "";
+    private CreateUserModal modalRef;
+
+    protected override async System.Threading.Tasks.Task OnParametersSetAsync()
+    {
+        var authState = await
+        AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            CurrentUserRole = user.FindFirst(ClaimTypes.Role)?.Value;
+        }
+    }
+    private List<User> UserData = new List<User>();
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        UserData = await UserService.GetAllUsersList();
+    }
+
+    private async System.Threading.Tasks.Task OpenModal()
+    {
+        modalRef.Show();
+    }
+
+    private async System.Threading.Tasks.Task RefreshUsers()
+    {
+        await OnInitializedAsync();
+        StateHasChanged();
+    }
+}

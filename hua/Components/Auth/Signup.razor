@@ -1,0 +1,73 @@
+@page "/signup"
+@using System.ComponentModel.DataAnnotations
+@using hua.Services
+@inject AuthService AuthService
+@inject NavigationManager NavManager
+
+<h1 class="mb-3">Signup</h1>
+
+<EditForm Model="@signupModel" OnValidSubmit="@HandleSignup">
+    <DataAnnotationsValidator />
+    
+    <div class="mb-3 w-50">
+        <label for="name" class="form-label">Name</label>
+        <InputText id="name" class="form-control" @bind-Value="signupModel.Name" />
+        <ValidationMessage For="@(() => signupModel.Name)" />
+    </div>
+    
+    <div class="mb-3 w-50">
+        <label for="email" class="form-label">Email</label>
+        <InputText id="email" class="form-control" @bind-Value="signupModel.Email" />
+        <ValidationMessage For="@(() => signupModel.Email)" />
+    </div>
+    
+    <div class="mb-3 w-50">
+        <label for="password" class="form-label">Password</label>
+        <InputText id="password" class="form-control" type="password" @bind-Value="signupModel.Password" />
+        <ValidationMessage For="@(() => signupModel.Password)" />
+    </div>
+
+    <button class="btn btn-primary me-2" type="submit">Sign Up</button>
+    <span class="text-muted">Already have an account? <a href="login">login</a> instead.</span>
+</EditForm>
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <p class="text-danger">@ErrorMessage</p>
+}
+
+@code {
+    private SignupModel signupModel = new();
+    private string ErrorMessage = string.Empty;
+
+    private async Task HandleSignup()
+    {
+        ErrorMessage = "";
+
+        try
+        {
+            // This calls our AuthService
+            var newUser = await AuthService.Signup(signupModel.Name, signupModel.Email, signupModel.Password);
+            // Redirect to login or home page on success
+            NavManager.NavigateTo("/signup", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private class SignupModel
+    {
+        [StringLength(100, ErrorMessage = "Name cannot exceed 100 characters")]
+        public string Name { get; set; } = "";
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+        public string Email { get; set; } = "";
+        
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+        public string Password { get; set; } = "";
+    }
+}

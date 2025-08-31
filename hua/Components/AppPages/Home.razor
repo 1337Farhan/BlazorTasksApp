@@ -1,0 +1,295 @@
+﻿@page "/"
+@using hua.Services
+@using hua.Entities
+@using System.Security.Claims
+@inject TaskService TaskService
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [Authorize]
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1 class="mb-4">Dashboard</h1>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading dashboard...</span>
+        </div>
+        <p class="mt-2">Loading dashboard data...</p>
+    </div>
+}
+else
+{
+    <!-- Key Metrics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Total Tasks</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <h2 class="card-text">@totalTasks</h2>
+                        </div>
+                        <div class="col-5 align-end text-end">
+                            <i class="bi bi-card-list fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Completed Tasks</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <h2 class="card-text">@completedTasks</h2>
+                        </div>
+                        <div class="col-5 align-end text-end">
+                            <i class="bi bi-check-circle-fill fs-3 text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Active Users</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <h2 class="card-text">@totalUsers</h2>
+                        </div>
+                        <div class="col-5 align-end text-end">
+                            <i class="bi bi-person-circle fs-3 text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Pending Tasks</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <h2 class="card-text">@pendingTasks</h2>
+                        </div>
+                        <div class="col-5 align-end text-end">
+                            <i class="bi bi-clock-history fs-3 text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Task Status Chart -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Task Status Distribution</h5>
+                </div>
+                <div class="card-body">
+                    @if (statusData.Any())
+                    {
+                        foreach (var item in statusData)
+                        {
+                            var percentage = totalTasks > 0 ? (item.Value * 100) / totalTasks : 0;
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="small">@item.Key</span>
+                                    <span class="small text-muted">@item.Value (@percentage.ToString("0")%)</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-@(GetStatusColor(item.Key))" 
+                                         style="width: @percentage%" 
+                                         role="progressbar">
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No tasks available</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- User Assignment Chart -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Tasks per User</h5>
+                </div>
+                <div class="card-body">
+                    @if (userAssignmentData.Any())
+                    {
+                        var maxTasks = userAssignmentData.Max(x => x.Value);
+                        
+                        foreach (var item in userAssignmentData.OrderByDescending(x => x.Value))
+                        {
+                            var percentage = maxTasks > 0 ? (item.Value * 100) / maxTasks : 0;
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="small">@item.Key</span>
+                                    <span class="small text-muted">@item.Value tasks</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-primary" 
+                                         style="width: @percentage%" 
+                                         role="progressbar">
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No task assignments</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Recent Tasks (Last 7 Days)</h5>
+                </div>
+                <div class="card-body">
+                    @if (recentTasks.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Title</th>
+                                        <th>Status</th>
+                                        <th>Assignee</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var task in recentTasks.Take(5))
+                                    {
+                                        <tr>
+                                            <td>@(task.Title.Length > 30 ? task.Title.Substring(0, 30) + "..." : task.Title)</td>
+                                            <td>
+                                                <span class="badge bg-@(GetStatusBadgeClass(task.Status))">
+                                                    @task.Status
+                                                </span>
+                                            </td>
+                                            <td>@(task.AssignedToUser?.Name ?? "Unassigned")</td>
+                                            <td>@task.CreatedDate.ToString("MMM dd")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No recent tasks</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private int totalTasks = 0;
+    private int completedTasks = 0;
+    private int pendingTasks = 0;
+    private int totalUsers = 0;
+    private List<Entities.Task> allTasks = new List<Entities.Task>();
+    private List<Entities.Task> recentTasks = new List<Entities.Task>();
+    private List<User> allUsers = new List<User>();
+    private Dictionary<string, int> statusData = new Dictionary<string, int>();
+    private Dictionary<string, int> userAssignmentData = new Dictionary<string, int>();
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async System.Threading.Tasks.Task LoadDashboardData()
+    {
+        isLoading = true;
+        
+        try
+        {
+            // Load all data
+            allTasks = await TaskService.GetTasksListAsync();
+            allUsers = await UserService.GetAllUsersList();
+            
+            // Calculate metrics
+            totalTasks = allTasks.Count;
+            completedTasks = allTasks.Count(t => t.Status == "Done");
+            pendingTasks = allTasks.Count(t => t.Status == "Pending");
+            totalUsers = allUsers.Count;
+            
+            // Get recent tasks (last 7 days)
+            recentTasks = allTasks
+                .Where(t => t.CreatedDate >= DateTime.Now.AddDays(-7))
+                .OrderByDescending(t => t.CreatedDate)
+                .ToList();
+            
+            // Prepare chart data
+            statusData = allTasks
+                .GroupBy(t => t.Status)
+                .ToDictionary(g => g.Key ?? "Unknown", g => g.Count());
+            
+            userAssignmentData = allTasks
+                .Where(t => t.AssignedToUser != null)
+                .GroupBy(t => t.AssignedToUser.Name)
+                .ToDictionary(g => g.Key, g => g.Count());
+                
+            // Add unassigned tasks
+            var unassignedCount = allTasks.Count(t => t.AssignedToUser == null);
+            if (unassignedCount > 0)
+            {
+                userAssignmentData["Unassigned"] = unassignedCount;
+            }
+                
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            isLoading = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Done" => "success",
+            "In Progress" => "primary",
+            "Pending" => "warning",
+            _ => "secondary"
+        };
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Done" => "success",
+            "In Progress" => "info",
+            "Pending" => "warning",
+            _ => "secondary"
+        };
+    }
+}

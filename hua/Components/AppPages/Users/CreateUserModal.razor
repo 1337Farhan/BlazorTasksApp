@@ -1,0 +1,126 @@
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.Extensions.Options
+@using hua.Entities
+@using hua.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject AuthService AuthService
+@inject UserService UserService
+
+<div class="modal fade @(IsVisible ? "show" : "")" id="createTaskModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="createTaskModalLabel" style="@(IsVisible ? "display: block;" : "display: none;")">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createTaskModalTitle">Create New User</h5>
+        <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <EditForm Model="signupModel" OnValidSubmit="HandleSignup">
+            <DataAnnotationsValidator />
+                        
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="signupModel.Name" />
+                <ValidationMessage For="() => signupModel.Name" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText class="form-control" @bind-Value="signupModel.Email" />
+                <ValidationMessage For="() => signupModel.Email" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <InputText type="password" class="form-control" @bind-Value="signupModel.Password" />
+                <ValidationMessage For="() => signupModel.Password" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Role</label>
+                <InputSelect class="form-select" @bind-Value="signupModel.Role">
+                    <option value="admin">Admin</option>
+                    <option value="employee">Employee</option>
+                </InputSelect>
+                <ValidationMessage For="() => signupModel.Role" />
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create User</button>
+            </div>
+        </EditForm>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <p class="text-danger">@ErrorMessage</p>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnUserCreated { get; set; }
+    private bool IsVisible;
+    private string ErrorMessage = string.Empty;
+    private SignupModel signupModel = new SignupModel();
+        
+    private async System.Threading.Tasks.Task HandleSignup()
+    {
+        ErrorMessage = "";
+
+        try
+        {
+            // This calls our AuthService
+            var newUser = await AuthService.Signup(signupModel.Name, signupModel.Email, signupModel.Password, signupModel.Role);
+            
+            // Reset the form and close modal on success
+            signupModel = new SignupModel();
+            await OnUserCreated.InvokeAsync();
+            Hide();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+    
+    public void Show()
+    {
+        IsVisible = true;
+        ErrorMessage = "";
+        signupModel = new SignupModel(); // Reset form when shown
+        StateHasChanged();
+    }
+    
+    public void Hide()
+    {
+        IsVisible = false;
+        StateHasChanged();
+    }
+
+    private List<User> UserData = new List<User>();
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        UserData = await UserService.GetAllUsersList();
+    }
+
+    private class SignupModel
+    {
+        [Required(ErrorMessage = "Name is required")]
+        [StringLength(100, ErrorMessage = "Name cannot exceed 100 characters")]
+        public string Name { get; set; } = "";
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+        public string Email { get; set; } = "";
+        
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters")]
+        public string Password { get; set; } = "";
+        
+        [Required(ErrorMessage = "Role is required")]
+        public string Role { get; set; } = "admin";
+    }
+}

@@ -1,0 +1,70 @@
+@page "/activate-user/{verificationToken}"
+@using Microsoft.AspNetCore.Components
+@using System.Threading.Tasks
+@using hua.Services
+@inject UserService UserService
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+@using Microsoft.Extensions.Logging;
+
+<PageTitle>Activate Account</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body text-center">
+                    @if (isLoading)
+                    {
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <h2 class="card-title @(isSuccess ? "text-success" : "text-danger")">
+                            @(isSuccess ? "Account Activated!" : "Activation Failed")
+                        </h2>
+                        <p class="card-text">@resultMessage</p>
+                        @if (isSuccess)
+                        {
+                            <button class="btn btn-primary" @onclick="NavigateToLogin">Go to Login</button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string verificationToken { get; set; }
+
+    private bool isLoading = true;
+    private bool isSuccess = false;
+    private string resultMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await AuthService.ActivateUserAccount(verificationToken);
+            isSuccess = result.Success;
+            resultMessage = result.Message ?? "Unable to activate account. The activation link may be invalid or expired.";
+        }
+        catch (Exception ex)
+        {
+            isSuccess = false;
+            resultMessage = "An unexpected error occurred. Please try again later.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    private void NavigateToLogin()
+    {
+        NavigationManager.NavigateTo("/login");
+    }
+}

@@ -1,0 +1,31 @@
+@namespace UsersTable
+@using System
+@using hua.Entities
+<table class="table table-striped table-hover border mt-2">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Join Date</th>
+            <th>Role</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in UserData)
+        {
+            <tr key="@user.Id">
+                <td>@user.Id</td>
+                <td>@(user.Name == ""? "-":user.Name)</td>
+                <td>@user.Email</td>
+                <td>@user.JoinDate.ToString("dd MMM yyyy")</td>
+                <td>@user.Role</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter]
+    public List<User> UserData { get; set; } = new List<User>();
+}

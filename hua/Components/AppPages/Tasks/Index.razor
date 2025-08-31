@@ -1,0 +1,118 @@
+@page "/tasks"
+@using System.Security.Claims
+@using hua.Services
+@using hua.Entities
+@using hua.Components.InterfaceElements
+@using AppPages
+@inject TaskService TaskService
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [Authorize]
+
+<PageTitle>Tasks</PageTitle>
+
+<h1>Tasks</h1>
+<p>Here you can View and Manage <code>tasks</code> (CRUD)</p>
+<i class="text-muted">Note: You can only view tasks that you have permission to view</i>
+
+<div class="row">
+    <div class="col-12 text-end">
+        <button @onclick="OpenModal" class="btn btn-sm btn-primary" type="button">+ Create Task</button>
+    </div>
+</div>
+@if (TaskData == null || TaskData.Count == 0)
+{
+    <div class="text-center py-4">
+        <p class="text-muted">No tasks found</p>
+    </div>
+}
+else
+{
+    <TasksTable TaskData="@TaskData" OnTaskUpdated="RefreshTasks" CurrentUserRole="@currentUserRole" OnViewTaskDetails="ViewTaskDetails"/>
+}
+<CreateTaskModal @ref="modalRef" OnTaskCreated="RefreshTasks" />
+<ViewTaskDetailsModal @ref="viewModalRef" OnTaskUpdated="RefreshTasks" /> <!-- Add this line -->
+
+@code {
+    private List<Entities.Task> TaskData = new List<Entities.Task>();
+    private CreateTaskModal modalRef;
+    private ViewTaskDetailsModal viewModalRef;
+
+    private User currentUserEntity = new User();
+    private string currentUserRole = "";
+    private bool isUserDataLoaded = false;
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        await LoadUserData();
+        await LoadTasks();
+    }
+
+    private async System.Threading.Tasks.Task LoadUserData()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var claimsUser = authState.User;
+
+        if (claimsUser.Identity.IsAuthenticated)
+        {
+            // Get user role from claims
+            currentUserRole = claimsUser.FindFirst(ClaimTypes.Role)?.Value ?? "user";
+            
+            // Get user ID from claims
+            var userIdString = claimsUser.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            if (!string.IsNullOrEmpty(userIdString) && int.TryParse(userIdString, out int userId))
+            {
+                currentUserEntity = await UserService.GetUserById(userId);
+            }
+            else
+            {
+                // Fallback to email if ID not available
+                var userEmail = claimsUser.FindFirst(ClaimTypes.Email)?.Value ?? 
+                               claimsUser.Identity.Name;
+                if (!string.IsNullOrEmpty(userEmail))
+                {
+                    currentUserEntity = await UserService.GetUserByEmail(userEmail);
+                }
+            }
+            
+            isUserDataLoaded = true;
+        }
+    }
+
+    private async System.Threading.Tasks.Task LoadTasks()
+    {
+        if (!isUserDataLoaded) return; // Don't load tasks until user data is ready
+        
+        if (currentUserRole == "admin")
+        {
+            TaskData = await TaskService.GetTasksListAsync();
+        }
+        else if (currentUserEntity != null && currentUserEntity.Id > 0)
+        {
+            TaskData = await TaskService.GetTasksListByUidAsync(currentUserEntity);
+        }
+        else
+        {
+            TaskData = new List<Entities.Task>();
+        }
+        
+        StateHasChanged();
+    }
+
+    private async System.Threading.Tasks.Task OpenModal()
+    {
+        modalRef.Show();
+    }
+
+    private void ViewTaskDetails(Entities.Task task)
+    {
+        viewModalRef.Show(task); 
+    }
+
+    private async System.Threading.Tasks.Task RefreshTasks()
+    {
+        await LoadTasks(); // This will refresh the task list
+        StateHasChanged();
+    }
+}

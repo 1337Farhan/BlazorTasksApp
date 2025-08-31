@@ -1,0 +1,98 @@
+﻿
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        @* Current logged in user email *@
+        <a class="navbar-brand text-white"
+           href="">Task Manager</a>
+    </div>
+</div>
+
+<input type="checkbox"
+       title="Navigation menu"
+       class="navbar-toggler" />
+
+<div class="nav-scrollable"
+     onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <AuthorizeView>
+            <Authorized>
+                <div class="mt-4">
+                    <div class="row mb-2 px-3">
+                        <div class="col-4 d-none d-md-block">
+                            <img src="https://picsum.photos/200/200"
+                                 alt="profile avatar"
+                                 class="img-fluid me-2 rounded-circle" />
+                        </div>
+                        <div class="col-xs-12 col-md-8 px-xs-3 px-md-1">
+                            <h5 class="my-auto 
+text-white">@CurrentUserName</h5>
+                            <div class="d-flex align-items-center mt-1">
+                                <a class="my-auto fw-light small 
+text-white text-decoration-none"
+                                   href="logout">Logout<i class="my-auto bi 
+bi-sm bi-box-arrow-right text-white ms-2"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row px-3">
+                        <div class="col-12">
+                            <hr class="text-white" />
+                        </div>
+                    </div>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link"
+                     href=""
+                     Match="NavLinkMatch.All">
+                <i class="bi bi-speedometer2"
+                   aria-hidden="true"></i>
+                Dashboard
+            </NavLink>
+        </div>
+        @if (CurrentUserRole == "admin" || CurrentUserRole == "")
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link"
+                         href="users">
+                    <i class="bi bi-person"
+                       aria-hidden="true"></i> Users
+                </NavLink>
+            </div>
+        }
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link"
+                     href="tasks">
+                <i class="bi bi-list-ul"
+                   aria-hidden="true"></i> Tasks
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private string CurrentUserName = "";
+    private string CurrentUserRole = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var authState = await
+        AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            CurrentUserName = user.Identity.Name;
+            CurrentUserRole = user.FindFirst(ClaimTypes.Role)?.Value;
+        }
+    }
+}

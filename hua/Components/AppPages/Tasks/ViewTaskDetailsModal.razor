@@ -1,0 +1,184 @@
+@using hua.Entities
+@using hua.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Security.Claims
+@inject TaskService TaskService
+@inject UserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="modal fade @(IsVisible ? "show" : "")" id="viewTaskModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="viewTaskModalLabel" style="@(IsVisible ? "display: block;" : "display: none;")">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewTaskModalLabel">Task Details</h5>
+        <button type="button" class="btn-close" @onclick="Hide" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <EditForm Model="CurrentTask" OnValidSubmit="HandleUpdate">
+            <DataAnnotationsValidator />
+                        
+            <div class="mb-3">
+                <label class="form-label">Title</label>
+                <InputText class="form-control" @bind-Value="CurrentTask.Title" />
+                <ValidationMessage For="() => CurrentTask.Title" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control" @bind-Value="CurrentTask.Description" />
+                <ValidationMessage For="() => CurrentTask.Description" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Assignee</label>
+                @if (currentUserRole == "admin")
+                {
+                    <InputSelect class="form-select" @bind-Value="selectedUserId">
+                        <option value="">Unassigned</option>
+                        @foreach(var user in UserData)
+                        {
+                            <option value="@user.Id" selected="@(CurrentTask.AssignedToUser?.Id == user.Id)">
+                                @user.Name
+                            </option>
+                        }
+                    </InputSelect>
+                }
+                else
+                {
+                    <div class="form-control-plaintext">
+                        @(CurrentTask.AssignedToUser?.Name ?? "Unassigned")
+                    </div>
+                    <small class="form-text text-muted">Only admins can change assignees.</small>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Status</label>
+                <InputSelect class="form-select" @bind-Value="CurrentTask.Status">
+                    <option value="Pending" selected="@(CurrentTask.Status == "Pending")">Pending</option>
+                    <option value="In Progress" selected="@(CurrentTask.Status == "In Progress")">In Progress</option>
+                    <option value="Done" selected="@(CurrentTask.Status == "Done")">Done</option>
+                </InputSelect>
+                <ValidationMessage For="() => CurrentTask.Status" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Created Date</label>
+                <div class="form-control-plaintext">
+                    @CurrentTask.CreatedDate.ToString("dd MMM yyyy HH:mm")
+                </div>
+            </div>
+
+            @if (CurrentTask.CompletedDate.HasValue)
+            {
+                <div class="mb-3">
+                    <label class="form-label">Completed Date</label>
+                    <div class="form-control-plaintext">
+                        @CurrentTask.CompletedDate.Value.ToString("dd MMM yyyy HH:mm")
+                    </div>
+                </div>
+            }
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Hide">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Task</button>
+            </div>
+        </EditForm>
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    private bool IsVisible;
+    private string? selectedUserId;
+    [Parameter] public EventCallback OnTaskUpdated { get; set; }
+    
+    private hua.Entities.Task CurrentTask = new hua.Entities.Task();
+    private List<User> UserData = new List<User>();
+    private string currentUserRole = "";
+    private string currentUserName = "";
+    private int currentUserId = 0;
+
+    public void Show(hua.Entities.Task task)
+    {
+        CurrentTask = task;
+        selectedUserId = task.AssignedToUser?.Id.ToString();
+        IsVisible = true;
+        StateHasChanged();
+    }
+    
+    public void Hide()
+    {
+        IsVisible = false;
+        StateHasChanged();
+    }
+
+    protected override async System.Threading.Tasks.Task OnInitializedAsync()
+    {
+        // Get current user info
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity.IsAuthenticated)
+        {
+            currentUserRole = user.FindFirst(ClaimTypes.Role)?.Value ?? "user";
+            currentUserName = user.Identity.Name;
+            
+            var userIdString = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userIdString) && int.TryParse(userIdString, out int userId))
+            {
+                currentUserId = userId;
+            }
+        }
+
+        // Load users for admin assignee dropdown
+        if (currentUserRole == "admin")
+        {
+            UserData = await UserService.GetAllUsersList();
+        }
+    }
+
+    private async System.Threading.Tasks.Task HandleUpdate()
+    {
+        try
+        {
+            // Handle assignee update for admins
+            if (currentUserRole == "admin" && !string.IsNullOrEmpty(selectedUserId))
+            {
+                if (int.TryParse(selectedUserId, out int userId))
+                {
+                    var user = UserData.FirstOrDefault(u => u.Id == userId);
+                    CurrentTask.AssignedToUser = user;
+                }
+                else
+                {
+                    CurrentTask.AssignedToUser = null;
+                }
+            }
+
+            // Update completion date if status changed to Done
+            if (CurrentTask.Status == "Done" && CurrentTask.CompletedDate == null)
+            {
+                CurrentTask.CompletedDate = DateTime.Now;
+            }
+            else if (CurrentTask.Status != "Done")
+            {
+                CurrentTask.CompletedDate = null;
+            }
+
+            // Update the task
+            var result = await TaskService.UpdateTaskAsync(CurrentTask.Id, CurrentTask);
+            
+            if (result != null)
+            {
+                Hide();
+                await OnTaskUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating task: {ex.Message}");
+        }
+    }
+}
